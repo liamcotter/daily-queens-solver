@@ -1,0 +1,1 @@
+Solver for the Daily Queens game.
