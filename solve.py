@@ -17,6 +17,7 @@ class ParentBoard(Board):
         super().__init__()
 
         self.size = size
+        self.queen_count = 0
         self.board = [board[size*i:size*(i+1)] for i in range(size)]
         self.subBoards = []
         for col in range(2, self.size+2):
@@ -32,6 +33,7 @@ class ParentBoard(Board):
         self.eliminate_tile(tile[0]+1, tile[1]+1)
 
         self.board[tile[0]][tile[1]] = self.QUEEN
+        self.queen_count += 1
     
     def eliminate_row(self, row: int):
         """Eliminates a row from all boards."""
@@ -52,6 +54,15 @@ class ParentBoard(Board):
             self.board[row][col] = self.NULL
             for subBoard in self.subBoards:
                 subBoard.eliminate_tile_sub(row, col)
+    
+    def solve(self):
+        """Initiates the solve."""
+        while self.queen_count < self.size:
+            for subBoard in self.subBoards:
+                if subBoard.pattern_match():
+                    break   # restart the loop after an update
+
+
 
 class subBoard(Board):
     """A board for each individual colour."""
@@ -59,6 +70,8 @@ class subBoard(Board):
         """Creates a subboard for a specific colour based off of the parent board."""
         super().__init__()
 
+        self.parent_board = parent_board
+        self.colour = colour
         self.size = size
         self.board = [[None for _ in range(size)] for _ in range(size)]
         self.count = 0
@@ -73,45 +86,45 @@ class subBoard(Board):
         available = []
         for i in range(self.size):
             for j in range(self.size):
-                if self.board[i][j]:
+                if self.board[i][j] != self.NULL:
                     available.append((i, j))
                     if self.count == len(available): return available
-        return available   
-
-    
-    def solve(self):
-        ...
+        return available
     
     def eliminate_row_sub(self, row: int):
         """Eliminates a row from the subboard."""
-        for cell in self.board[row]:
-            if cell:
+        for ind, cell in enumerate(self.board[row]):
+            if cell != self.NULL:
                 self.count -= 1
-                cell = self.NULL
+                self.board[row][ind] = self.NULL
         
     def elimiate_col_sub(self, col: int):
         """Eliminates a column from the subboard."""
-        for row in self.board:
-            if row[col]:
+        for ind, row in enumerate(self.board):
+            if row[col] != self.NULL:
                 self.count -= 1
-                row[col] = self.NULL
+                self.board[ind][col] = self.NULL
     
     def eliminate_tile_sub(self, row: int, col: int):
         """Eliminates a tile from the subboard."""
-        if self.board[row][col]:
+        if self.board[row][col] != self.NULL:
             self.count -= 1
             self.board[row][col] = self.NULL
 
-    def pattern_match(self):
-        """Identifies a pattern and acts accordingly."""
+    def pattern_match(self) -> bool:
+        """Identifies a pattern and acts accordingly. Returns True if any tiles are eliminated, allowing for another iteration."""
         if self.count == 1:
-            tile = self.get_available_tiles()[0]
-            self.place_queen(tile)
+            [tile] = self.get_available_tiles()
+            self.parent_board.place_queen(tile)
+            return True
+        return False
 
 # Temporary test code
 if __name__ == "__main__":
-    b = ParentBoard(4, [5, 5, 5, 5, 5, 3, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4])
-    b.place_queen((0, 1))
+    b = ParentBoard(4, [5, 2, 5, 5, 5, 5, 5, 3, 4, 5, 5, 5, 5, 5, 5, 5])
+    #b.place_queen((0, 1))
     print(b)
     for sb in b.subBoards:
         print(sb)
+    b.solve()
+    print(b)
