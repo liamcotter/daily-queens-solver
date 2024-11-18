@@ -1,3 +1,5 @@
+from itertools import batched
+
 class Board:
     def __init__(self):
         self.QUEEN = 0 # index
@@ -22,6 +24,9 @@ class ParentBoard(Board):
         self.subBoards = []
         for col in range(2, self.size+2):
             self.subBoards.append(subBoard(size, self, col))
+        
+        self.pattern_board = {}
+        
         
     def place_queen(self, tile: tuple[int, int]):
         """Places a queen on the board and nullifies the incompatible tiles."""
@@ -61,7 +66,11 @@ class ParentBoard(Board):
             for subBoard in self.subBoards:
                 if subBoard.pattern_match():
                     break   # restart the loop after an update
-
+            # also check for solid rows/columns?
+    
+    def add_PatternBoard(self, pattern: 'PatternBoard'):
+        """Adds a pattern to the board."""
+        self.pattern_board[pattern.custom_hash()] = pattern.custom_sol()
 
 
 class subBoard(Board):
@@ -113,11 +122,67 @@ class subBoard(Board):
 
     def pattern_match(self) -> bool:
         """Identifies a pattern and acts accordingly. Returns True if any tiles are eliminated, allowing for another iteration."""
-        if self.count == 1:
+        if self.count == 0:
+            return False
+        elif self.count == 1:
             [tile] = self.get_available_tiles()
             self.parent_board.place_queen(tile)
             return True
-        return False
+        elif self.count == 2:
+            ... # weird pattern matching stuff here
+        elif self.count == self.size:
+            ... # check if all tiles are in a row/column
+        else:
+            return False
+
+class PatternBoard(Board):
+    def __init__(self, board: list, width: int, height: int):
+        """Variable size board that also shows the eliminated tiles."""
+        super().__init__()
+        self.open_board = [t if t == 0 else None for t in board]
+        self.w_offset = 0
+        self.h_offset = 0
+        # Crop board
+        while self.open_board[0:width] == [0]*width:
+            self.open_board = self.open_board[width:]
+            height -= 1
+            self.h_offset += 1
+        while self.open_board[-width:] == [0]*width:
+            self.open_board = self.open_board[:-width]
+            height -= 1
+            self.h_offset += 1
+        # sides
+        self.open_board = self.rotate_clockwise(self.open_board, width)
+        while self.open_board[0:height] == [0]*height:
+            self.open_board = self.open_board[height:]
+            width -= 1
+            self.w_offset += 1
+        while self.open_board[-height:] == [0]*height:
+            self.open_board = self.open_board[:-height]
+            width -= 1
+            self.w_offset += 1
+        self.open_board = self.rotate_counter_clockwise(self.open_board, height)
+
+        self.marked_board = [t if t in [0, 1] else None for t in board]
+        self.input_board = board
+        self.width = width
+    
+    def rotate_clockwise(self, board: list, size: int):
+        """Rotates a board 90 degrees clockwise."""
+        return list(zip(*batched(board, size)[::-1]))
+    
+    def rotate_counter_clockwise(self, board: list, size: int):
+        """Rotates a board 90 degrees counter-clockwise."""
+        return list(zip(*batched(board, size)))[::-1]
+    
+    def custom_hash(self) -> int:
+        """Creates a hash for the board."""
+        return hash(tuple(self.open_board + [self.width]))
+    
+    def custom_sol(self) -> tuple:
+        """Returns the solution board and offset."""
+        return self.open_board, (self.w_offset, self.h_offset)
+
 
 # Temporary test code
 if __name__ == "__main__":
@@ -128,3 +193,13 @@ if __name__ == "__main__":
         print(sb)
     b.solve()
     print(b)
+
+"""
+For pattern matching:
+Get original shape: store minimum, hash (board+size), store in dict with solution as val
+solution is board + offset because of new outer border
+For pattern: Record top left of pattern. crop, rotate/flip and record actions. Update size each time (swaps from L(n), b to L(n), L(n)/b and back)
+                check if hash exists. If so, get solution and reverse actions. Update offset too.
+                Needs 4 rotations and a flip, so 8 combinations. Cancel duplicates.
+Adjust top left point by offset. Mask new solution to eliminate tiles. Ignore OOB.
+"""
