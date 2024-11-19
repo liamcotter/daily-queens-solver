@@ -26,8 +26,20 @@ class ParentBoard(Board):
             self.subBoards.append(subBoard(size, self, col))
         
         self.pattern_board = {}
-        
-        
+
+    def eliminated_tile_count(self) -> int:
+        """Returns the number of eliminated tiles to check for differences."""
+        eliminated_tile_count = 0
+        for row in self.board:
+            for tile in row:
+                if tile == 1:
+                    eliminated_tile_count += 1
+        return eliminated_tile_count
+    
+    def replace_tile(self, tile: tuple[int, int], colour: int):
+        """Replaces a tile, for use after clearing the rest of the row."""
+        self.board[tile[0]][tile[1]] = colour
+    
     def place_queen(self, tile: tuple[int, int]):
         """Places a queen on the board and nullifies the incompatible tiles."""
         self.eliminate_row(tile[0])
@@ -67,6 +79,8 @@ class ParentBoard(Board):
                 if subBoard.pattern_match():
                     break   # restart the loop after an update
             # also check for solid rows/columns?
+            print(self)
+            print(self.queen_count, self.size)
     
     def add_PatternBoard(self, pattern: 'PatternBoard'):
         """Adds a pattern to the board."""
@@ -83,12 +97,12 @@ class subBoard(Board):
         self.colour = colour
         self.size = size
         self.board = [[None for _ in range(size)] for _ in range(size)]
-        self.count = 0
+        self.tiles_left = 0
         for i in range(size):
             for j in range(size):
                 self.board[i][j] = colour if parent_board.board[i][j] == colour else self.NULL
                 if self.board[i][j] == colour:
-                    self.count += 1
+                    self.tiles_left += 1
         
     def get_available_tiles(self) -> list[tuple[int, int]]:
         """Fetches the coordinates of all tiles that can have a queen."""
@@ -97,51 +111,83 @@ class subBoard(Board):
             for j in range(self.size):
                 if self.board[i][j] != self.NULL:
                     available.append((i, j))
-                    if self.count == len(available): return available
+                    if self.tiles_left == len(available): return available
         return available
     
     def eliminate_row_sub(self, row: int):
         """Eliminates a row from the subboard."""
         for ind, cell in enumerate(self.board[row]):
             if cell != self.NULL:
-                self.count -= 1
+                self.tiles_left -= 1
                 self.board[row][ind] = self.NULL
         
     def elimiate_col_sub(self, col: int):
         """Eliminates a column from the subboard."""
         for ind, row in enumerate(self.board):
             if row[col] != self.NULL:
-                self.count -= 1
+                self.tiles_left -= 1
                 self.board[ind][col] = self.NULL
     
     def eliminate_tile_sub(self, row: int, col: int):
         """Eliminates a tile from the subboard."""
         if self.board[row][col] != self.NULL:
-            self.count -= 1
+            self.tiles_left -= 1
             self.board[row][col] = self.NULL
 
     def pattern_match(self) -> bool:
         """Identifies a pattern and acts accordingly. Returns True if any tiles are eliminated, allowing for another iteration."""
-        if self.count == 0:
+        if self.tiles_left == 0:
             return False
-        elif self.count == 1:
+        elif self.tiles_left == 1:
             [tile] = self.get_available_tiles()
             self.parent_board.place_queen(tile)
             return True
-        elif self.count == 2:
-            ... # weird pattern matching stuff here
-        elif self.count == self.size:
-            ... # check if all tiles are in a row/column
+        # elif self.tiles_left == 2:
+        #     ... # weird pattern matching stuff here
+        # elif self.count == self.size:
         else:
-            return False
+            tiles = self.get_available_tiles()
+            if all([x[0] == tiles[0][0] for x in tiles]):
+                row = tiles[0][0]
+                pre_elim_count = self.parent_board.eliminated_tile_count()
+                self.parent_board.eliminate_row(row)
+                for tile in tiles:
+                    self.parent_board.replace_tile(tile, self.colour)
+                    self.board[tile[0]][tile[1]] = self.colour
+                    self.tiles_left += 1
+                print(self.parent_board.eliminated_tile_count(), pre_elim_count)
+                if self.parent_board.eliminated_tile_count() == pre_elim_count:
+                    return False # No change
+                return True
+            
+            elif all([x[1] == tiles[0][1] for x in tiles]):
+                col = tiles[0][1]
+                pre_elim_count = self.parent_board.eliminated_tile_count()
+                self.parent_board.eliminate_col(col)
+                for tile in tiles:
+                    self.parent_board.replace_tile(tile, self.colour)
+                    self.board[tile[0]][tile[1]] = self.colour
+                    self.tiles_left += 1
+                if self.parent_board.eliminated_tile_count() == pre_elim_count:
+                    return False # No change
+                return True
+            return False    # No match
+        # else:
+        #     return False
 
 class PatternBoard(Board):
-    def __init__(self, board: list, width: int, height: int):
-        """Variable size board that also shows the eliminated tiles."""
+    def __init__(self, board: list, width: int, clear_line: str):
+        """Variable size board that also shows the eliminated tiles.
+            Board is the full solution board.
+            Width is for the shape of the board
+            clear_line denotes when a full line is cleared (only applies to where the solution is on one line), offset included"""
         super().__init__()
         self.open_board = [t if t == 0 else None for t in board]
         self.w_offset = 0
         self.h_offset = 0
+        self.clear_line = clear_line
+        height = int(len(self.open_board)/width)
+
         # Crop board
         while self.open_board[0:width] == [0]*width:
             self.open_board = self.open_board[width:]
@@ -181,7 +227,7 @@ class PatternBoard(Board):
     
     def custom_sol(self) -> tuple:
         """Returns the solution board and offset."""
-        return self.open_board, (self.w_offset, self.h_offset)
+        return self.open_board, (self.w_offset, self.h_offset), self.clear_line
 
 
 # Temporary test code
@@ -197,7 +243,7 @@ if __name__ == "__main__":
 """
 For pattern matching:
 Get original shape: store minimum, hash (board+size), store in dict with solution as val
-solution is board + offset because of new outer border
+solution is board + offset because of new outer border + clear_lines
 For pattern: Record top left of pattern. crop, rotate/flip and record actions. Update size each time (swaps from L(n), b to L(n), L(n)/b and back)
                 check if hash exists. If so, get solution and reverse actions. Update offset too.
                 Needs 4 rotations and a flip, so 8 combinations. Cancel duplicates.
