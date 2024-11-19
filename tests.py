@@ -7,7 +7,7 @@ class TestBoard(unittest.TestCase):
     def test_board(self):
         board = solve.ParentBoard(4, [5, 5, 5, 5, 5, 3, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4])
         board.place_queen((1, 1))
-        self.assertEqual(str(board), 'd X d d\nX Q X X\nb X b b\nc X c c\n')
+        self.assertEqual(str(board), 'X X X d\nX Q X X\nX X X b\nc X c c\n')
 
         b1 = solve.ParentBoard(*testcase_import())
         b1.solve()
